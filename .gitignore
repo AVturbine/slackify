@@ -1,0 +1,11 @@
+# Created by .ignore support plugin (hsz.mobi)
+__pycache__/
+env/
+tmp/
+*.egg-info/
+.idea
+slackify_old.py
+banlist.txt
+config.ini
+spotify_appkey.key
+
