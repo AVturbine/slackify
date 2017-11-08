@@ -13,7 +13,10 @@ We've found that productivity at AVBotz meetings goes up when listening to music
 ## Dependencies:
 * `pyspotify`: the python libspotify API (technically deprecated, but still functioning due to lack of alternative)
 * `slackclient`: the Slack bot API
-* `textblob`: for processing of commands (to be implemented)
+* `configparser`: for storing playlists, logins, etc. in config file
+* `cryptography`: encrypts credentials before storing in config file
+
+
 
 
 
