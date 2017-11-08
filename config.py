@@ -1,55 +1,62 @@
 import ConfigParser
 import getpass
+import pickle
+import os
 from cryptography.fernet import Fernet
 import slackclient
 
+CONFIG_PATH = os.path.dirname(os.path.abspath(__file__)) + '/config.ini'
+SPOTIFY_KEY_PATH = os.path.dirname(os.path.abspath(__file__)) + '/spotify_appkey.key'
 
-def initial_setup(config_path):
+
+def initial_setup():
     """Initial set-up - specify Slack token, path to Spotify key, etc."""
-    config = ConfigParser.ConfigParser()
+    conf = ConfigParser.ConfigParser()
     print "Slackify initial set-up\n"
-    config.add_section('Slack')
+    conf.add_section('Slack')
     bot_token = raw_input("Slack bot token: ")
-    config.set('Slack', 'bot-token', bot_token)
+    conf.set('Slack', 'bot-token', bot_token)
     bot_id = find_bot_id(bot_token)
-    config.set('Slack', 'bot-id', bot_id)
+    conf.set('Slack', 'bot-id', bot_id)
     chan_id = find_chan_id(bot_token)
-    config.set('Slack', 'chan-id', chan_id)
-    config.add_section('Spotify')
-    config.set('Spotify', 'username', raw_input("Spotify username: "))
+    conf.set('Slack', 'chan-id', chan_id)
+    conf.add_section('Spotify')
+    spotify_username = raw_input("Spotify username: ")
     key = Fernet.generate_key()
     crypto = Fernet(key)
-    config.set('Spotify', 'password', crypto.encrypt(bytes(getpass.getpass("Spotify password: "))))
-    config.set('Spotify', 'password-key', key)
-    with open(config_path, 'w') as config_file:
-        config.write(config_file)
+    encrypted_password = crypto.encrypt(bytes(getpass.getpass("Spotify password: ")))
+    login_blob = pickle.dumps([spotify_username, encrypted_password, key])
+    conf.set('Spotify', 'login-blob', login_blob)
+    with open(CONFIG_PATH, 'w') as config_file:
+        conf.write(config_file)
 
 
-def get_logins(config_path):
+def get_logins():
     """ Deciphers password and returns bot id, username, and password to the calling function"""
-    config = ConfigParser.ConfigParser()
-    config.read(config_path)
-    bot_id = config.get('Slack', 'bot-token')
-    username = config.get('Spotify', 'username')
-    crypto = Fernet(config.get('Spotify', 'password-key'))
-    password = crypto.decrypt(config.get('Spotify', 'password'))
+    conf = ConfigParser.ConfigParser()
+    conf.read(CONFIG_PATH)
+    bot_id = conf.get('Slack', 'bot-token')
+    username, encrypted_password, key = pickle.loads(bytes(conf.get('Spotify', 'login-blob')))
+    crypto = Fernet(key)
+    password = crypto.decrypt(encrypted_password)
     return bot_id, username, password
 
 
-def set_property(config_path, section, name, prop):
-    """Wraps config.set"""
-    config = ConfigParser.ConfigParser()
-    config.read(config_path)
-    config.set(section, name, prop)
-    with open(config_path, 'w') as config_file:
-        config.write(config_file)
+def set_property(section, name, prop):
+    """Wraps conf.set"""
+    conf = ConfigParser.ConfigParser()
+    conf.read(CONFIG_PATH)
+    conf.set(section, name, prop)
+    with open(CONFIG_PATH, 'w') as config_file:
+        conf.write(config_file)
 
 
-def get_property(config_path, section, name):
+def get_property(section, name):
     """Wraps config.get"""
-    config = ConfigParser.ConfigParser()
-    config.read(config_path)
-    return config.get(section, name)
+    conf = ConfigParser.ConfigParser()
+    conf.read(CONFIG_PATH)
+    return conf.get(section, name)
+
 
 def find_bot_id(bot_token):
     """Looks up bot's id against team's users"""
@@ -63,9 +70,9 @@ def find_bot_id(bot_token):
                 return user.get('id')
     raise Exception("Bot ID lookup failed: no user " + bot_name)
 
+
 def find_chan_id(bot_token):
     slack_client = slackclient.SlackClient(bot_token)
-
     channel_name = raw_input("What channel will Slackify be controlled from? (e.g. #general, #random) ")
     api_call = slack_client.api_call("groups.list", exclude_archived=True)
     if api_call.get('ok'):
